@@ -82,6 +82,10 @@ def init_db():
                 status TEXT NOT NULL DEFAULT 'accepted',
                 shipping_address TEXT,
                 tracking_number TEXT,
+                estimated_arrival_date TEXT,
+                flight_number TEXT,
+                pickup_location TEXT,
+                rating INTEGER,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 FOREIGN KEY (demand_id) REFERENCES demands(id),
@@ -221,13 +225,6 @@ REGISTER_HTML = """
 
 INDEX_HTML = """
     <div class="text-center">
-        <h2 class="text-xl font-semibold text-gray-900 mb-4">
-            {% if 'username' in session %}
-                欢迎回来, {{ username }}!
-            {% else %}
-                带货需求列表
-            {% endif %}
-        </h2>
         <div class="flex justify-center space-x-4 mb-8">
             {% if 'username' in session %}
                 <a href="/post_demand" class="py-2 px-4 bg-indigo-600 text-white rounded-md shadow-md hover:bg-indigo-700">发布带货需求</a>
@@ -235,90 +232,87 @@ INDEX_HTML = """
                 <a href="/login" class="py-2 px-4 bg-gray-500 text-white rounded-md shadow-md">登录后发布需求</a>
             {% endif %}
         </div>
-
-        <div class="flex flex-col md:flex-row gap-8 mt-8">
-            <div class="flex-1">
-                <h3 class="text-2xl font-semibold mb-4 text-left">所有带货需求</h3>
-                <form method="get" action="/" class="mb-4 space-y-2 md:space-y-0 md:space-x-2 md:flex items-center">
-                    <input type="text" name="item_name" placeholder="按物品名称筛选..." class="px-3 py-2 rounded-md border border-gray-300 w-full md:w-auto flex-1 focus:outline-none focus:ring-2 focus:ring-indigo-500" value="{{ request.args.get('item_name', '') }}">
-                    <input type="text" name="destination" placeholder="按目的地筛选..." class="px-3 py-2 rounded-md border border-gray-300 w-full md:w-auto flex-1 focus:outline-none focus:ring-2 focus:ring-indigo-500" value="{{ request.args.get('destination', '') }}">
-                    <input type="text" name="min_weight" placeholder="最小重量 (kg)..." class="px-3 py-2 rounded-md border border-gray-300 w-full md:w-auto focus:outline-none focus:ring-2 focus:ring-indigo-500" value="{{ request.args.get('min_weight', '') }}">
-                    <input type="text" name="max_weight" placeholder="最大重量 (kg)..." class="px-3 py-2 rounded-md border border-gray-300 w-full md:w-auto focus:outline-none focus:ring-2 focus:ring-indigo-500" value="{{ request.args.get('max_weight', '') }}">
-                    <button type="submit" class="bg-indigo-500 text-white px-4 py-2 rounded-md hover:bg-indigo-600 w-full md:w-auto">筛选</button>
-                </form>
-                {% if demands %}
-                <div class="overflow-x-auto bg-white rounded-lg shadow-md">
-                    <table class="table-auto w-full text-sm text-left text-gray-500">
-                        <thead class="text-xs text-gray-700 uppercase bg-gray-50">
-                            <tr>
-                                <th scope="col" class="min-w-0">
-                                    <a href="?sort=item_name&order={{ 'desc' if request.args.get('sort') == 'item_name' and request.args.get('order') == 'asc' else 'asc' }}{{ '&destination=' + request.args.get('destination', '') }}{{ '&item_name=' + request.args.get('item_name', '') }}{{ '&min_weight=' + request.args.get('min_weight', '') }}{{ '&max_weight=' + request.args.get('max_weight', '') }}">物品名称
-                                    {% if request.args.get('sort') == 'item_name' %}<span class="sort-icon">{{ '▲' if request.args.get('order') == 'asc' else '▼' }}</span>{% endif %}
-                                    </a>
-                                </th>
-                                <th scope="col" class="min-w-0">
-                                    <a href="?sort=destination&order={{ 'desc' if request.args.get('sort') == 'destination' and request.args.get('order') == 'asc' else 'asc' }}{{ '&destination=' + request.args.get('destination', '') }}{{ '&item_name=' + request.args.get('item_name', '') }}{{ '&min_weight=' + request.args.get('min_weight', '') }}{{ '&max_weight=' + request.args.get('max_weight', '') }}">目的地
-                                    {% if request.args.get('sort') == 'destination' %}<span class="sort-icon">{{ '▲' if request.args.get('order') == 'asc' else '▼' }}</span>{% endif %}
-                                    </a>
-                                </th>
-                                <th scope="col">
-                                    <a href="?sort=weight&order={{ 'desc' if request.args.get('sort') == 'weight' and request.args.get('order') == 'asc' else 'asc' }}{{ '&destination=' + request.args.get('destination', '') }}{{ '&item_name=' + request.args.get('item_name', '') }}{{ '&min_weight=' + request.args.get('min_weight', '') }}{{ '&max_weight=' + request.args.get('max_weight', '') }}">重量 (kg)
-                                    {% if request.args.get('sort') == 'weight' %}<span class="sort-icon">{{ '▲' if request.args.get('order') == 'asc' else '▼' }}</span>{% endif %}
-                                    </a>
-                                </th>
-                                <th scope="col">运费 (¥)</th>
-                                <th scope="col">联系方式</th>
-                                <th scope="col" class="min-w-0">发布日期
-                                    <a href="?sort=post_date&order={{ 'desc' if request.args.get('sort') == 'post_date' and request.args.get('order') == 'asc' else 'asc' }}{{ '&destination=' + request.args.get('destination', '') }}{{ '&item_name=' + request.args.get('item_name', '') }}{{ '&min_weight=' + request.args.get('min_weight', '') }}{{ '&max_weight=' + request.args.get('max_weight', '') }}">
-                                    {% if request.args.get('sort') == 'post_date' %}<span class="sort-icon">{{ '▲' if request.args.get('order') == 'asc' else '▼' }}</span>{% endif %}
-                                    </a>
-                                </th>
-                                <th scope="col">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        {% for demand in demands %}
-                            <tr class="bg-white border-b hover:bg-gray-50">
-                                <td class="whitespace-nowrap">{{ '❗' if demand['is_new'] else '' }} {{ demand['item_name'] }}</td>
-                                <td>{{ demand['destination'] }}</td>
-                                <td>{{ demand['weight'] }}</td>
-                                <td>{{ "%.2f"|format(demand['expected_fee']) }}</td>
-                                <td>
-                                    {% if 'username' in session %}
-                                    <div class="flex flex-col space-y-1">
-                                        {% if demand['phone_number'] %}<p class="text-sm text-blue-500">手机: {{ demand['phone_number'] }}</p>{% endif %}
-                                        {% if demand['wechat_id'] %}<p class="text-sm text-blue-500">微信: {{ demand['wechat_id'] }}</p>{% endif %}
-                                        {% if demand['whatsapp_id'] %}<p class="text-sm text-blue-500">WhatsApp: {{ demand['whatsapp_id'] }}</p>{% endif %}
-                                    </div>
+        <div class="flex-1">
+            <h3 class="text-2xl font-semibold mb-4 text-left">所有带货需求</h3>
+            <form method="get" action="/" class="mb-4 space-y-2 md:space-y-0 md:space-x-2 md:flex items-center">
+                <input type="text" name="item_name" placeholder="按物品名称筛选..." class="px-3 py-2 rounded-md border border-gray-300 w-full md:w-auto flex-1 focus:outline-none focus:ring-2 focus:ring-indigo-500" value="{{ request.args.get('item_name', '') }}">
+                <input type="text" name="destination" placeholder="按目的地筛选..." class="px-3 py-2 rounded-md border border-gray-300 w-full md:w-auto flex-1 focus:outline-none focus:ring-2 focus:ring-indigo-500" value="{{ request.args.get('destination', '') }}">
+                <input type="text" name="min_weight" placeholder="最小重量 (kg)..." class="px-3 py-2 rounded-md border border-gray-300 w-full md:w-auto focus:outline-none focus:ring-2 focus:ring-indigo-500" value="{{ request.args.get('min_weight', '') }}">
+                <input type="text" name="max_weight" placeholder="最大重量 (kg)..." class="px-3 py-2 rounded-md border border-gray-300 w-full md:w-auto focus:outline-none focus:ring-2 focus:ring-indigo-500" value="{{ request.args.get('max_weight', '') }}">
+                <button type="submit" class="bg-indigo-500 text-white px-4 py-2 rounded-md hover:bg-indigo-600 w-full md:w-auto">筛选</button>
+            </form>
+            {% if demands %}
+            <div class="overflow-x-auto bg-white rounded-lg shadow-md">
+                <table class="table-auto w-full text-sm text-left text-gray-500">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                        <tr>
+                            <th scope="col" class="min-w-0">
+                                <a href="?sort=item_name&order={{ 'desc' if request.args.get('sort') == 'item_name' and request.args.get('order') == 'asc' else 'asc' }}{{ '&destination=' + request.args.get('destination', '') }}{{ '&item_name=' + request.args.get('item_name', '') }}{{ '&min_weight=' + request.args.get('min_weight', '') }}{{ '&max_weight=' + request.args.get('max_weight', '') }}">物品名称
+                                {% if request.args.get('sort') == 'item_name' %}<span class="sort-icon">{{ '▲' if request.args.get('order') == 'asc' else '▼' }}</span>{% endif %}
+                                </a>
+                            </th>
+                            <th scope="col" class="min-w-0">
+                                <a href="?sort=destination&order={{ 'desc' if request.args.get('sort') == 'destination' and request.args.get('order') == 'asc' else 'asc' }}{{ '&destination=' + request.args.get('destination', '') }}{{ '&item_name=' + request.args.get('item_name', '') }}{{ '&min_weight=' + request.args.get('min_weight', '') }}{{ '&max_weight=' + request.args.get('max_weight', '') }}">目的地
+                                {% if request.args.get('sort') == 'destination' %}<span class="sort-icon">{{ '▲' if request.args.get('order') == 'asc' else '▼' }}</span>{% endif %}
+                                </a>
+                            </th>
+                            <th scope="col">
+                                <a href="?sort=weight&order={{ 'desc' if request.args.get('sort') == 'weight' and request.args.get('order') == 'asc' else 'asc' }}{{ '&destination=' + request.args.get('destination', '') }}{{ '&item_name=' + request.args.get('item_name', '') }}{{ '&min_weight=' + request.args.get('min_weight', '') }}{{ '&max_weight=' + request.args.get('max_weight', '') }}">重量 (kg)
+                                {% if request.args.get('sort') == 'weight' %}<span class="sort-icon">{{ '▲' if request.args.get('order') == 'asc' else '▼' }}</span>{% endif %}
+                                </a>
+                            </th>
+                            <th scope="col">运费 (¥)</th>
+                            <th scope="col">联系方式</th>
+                            <th scope="col" class="min-w-0">发布日期
+                                <a href="?sort=post_date&order={{ 'desc' if request.args.get('sort') == 'post_date' and request.args.get('order') == 'asc' else 'asc' }}{{ '&destination=' + request.args.get('destination', '') }}{{ '&item_name=' + request.args.get('item_name', '') }}{{ '&min_weight=' + request.args.get('min_weight', '') }}{{ '&max_weight=' + request.args.get('max_weight', '') }}">
+                                {% if request.args.get('sort') == 'post_date' %}<span class="sort-icon">{{ '▲' if request.args.get('order') == 'asc' else '▼' }}</span>{% endif %}
+                                </a>
+                            </th>
+                            <th scope="col">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for demand in demands %}
+                        <tr class="bg-white border-b hover:bg-gray-50">
+                            <td class="whitespace-nowrap">{{ '❗' if demand['is_new'] else '' }} {{ demand['item_name'] }}</td>
+                            <td>{{ demand['destination'] }}</td>
+                            <td>{{ demand['weight'] }}</td>
+                            <td>{{ "%.2f"|format(demand['expected_fee']) }}</td>
+                            <td>
+                                {% if 'username' in session %}
+                                <div class="flex flex-col space-y-1">
+                                    {% if demand['phone_number'] %}<p class="text-sm text-blue-500">手机: {{ demand['phone_number'] }}</p>{% endif %}
+                                    {% if demand['wechat_id'] %}<p class="text-sm text-blue-500">微信: {{ demand['wechat_id'] }}</p>{% endif %}
+                                    {% if demand['whatsapp_id'] %}<p class="text-sm text-blue-500">WhatsApp: {{ demand['whatsapp_id'] }}</p>{% endif %}
+                                </div>
+                                {% else %}
+                                <a href="/login" class="text-red-500 hover:underline">登录后查看</a>
+                                {% endif %}
+                            </td>
+                            <td>{{ demand['post_date'].split(' ')[0] }}</td>
+                            <td class="space-x-2 whitespace-nowrap">
+                                {% if 'username' in session %}
+                                    {% if demand['status'] == 'open' %}
+                                    <a href="/accept_demand/{{ demand['id'] }}" class="text-sm text-green-600 hover:underline">接受需求</a>
                                     {% else %}
-                                    <a href="/login" class="text-red-500 hover:underline">登录后查看</a>
+                                    <a href="/order_details/{{ demand['id'] }}" class="text-sm text-blue-600 hover:underline">查看进度</a>
                                     {% endif %}
-                                </td>
-                                <td>{{ demand['post_date'].split(' ')[0] }}</td>
-                                <td class="space-x-2 whitespace-nowrap">
-                                    {% if 'username' in session %}
-                                        {% if demand['status'] == 'open' %}
-                                        <a href="/accept_demand/{{ demand['id'] }}" class="text-sm text-green-600 hover:underline">接受需求</a>
-                                        {% elif demand['status'] != 'open' %}
-                                        <a href="/order_details/{{ demand['id'] }}" class="text-sm text-blue-600 hover:underline">查看进度</a>
-                                        {% endif %}
-                                        {% if session['is_admin'] or demand['user_id'] == session['user_id'] %}
-                                        <a href="/edit_demand/{{ demand['id'] }}" class="text-sm text-blue-600 hover:underline">编辑</a>
-                                        <a href="/delete_demand/{{ demand['id'] }}" class="text-sm text-red-600 hover:underline">删除</a>
-                                        {% endif %}
-                                    {% else %}
-                                        <a href="/login" class="text-sm text-gray-500 hover:underline">登录</a>
+                                    {% if session['is_admin'] or demand['user_id'] == session['user_id'] %}
+                                    <a href="/edit_demand/{{ demand['id'] }}" class="text-sm text-blue-600 hover:underline">编辑</a>
+                                    <a href="/delete_demand/{{ demand['id'] }}" class="text-sm text-red-600 hover:underline">删除</a>
                                     {% endif %}
-                                </td>
-                            </tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <p class="text-center text-gray-500 mt-4">暂无需求发布</p>
-                {% endif %}
+                                {% else %}
+                                    <a href="/login" class="text-sm text-gray-500 hover:underline">登录</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
             </div>
+            {% else %}
+            <p class="text-center text-gray-500 mt-4">暂无需求发布</p>
+            {% endif %}
         </div>
     </div>
 """
@@ -431,24 +425,6 @@ EDIT_DEMAND_HTML = """
     </div>
 """
 
-ACCEPT_DEMAND_HTML = """
-    <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-lg mx-auto">
-        <h1 class="text-3xl font-bold text-center text-indigo-600 mb-6">接受需求 - 填写收货地址</h1>
-        <p class="text-gray-600 mb-4">请填写国内收货地址，以便发布者寄送物品。</p>
-        <form method="post" action="/post_shipping_address/{{ demand['id'] }}" class="space-y-4">
-            <div>
-                <label for="shipping_address" class="block text-sm font-medium text-gray-700">收货地址</label>
-                <textarea id="shipping_address" name="shipping_address" rows="4" required 
-                          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></textarea>
-            </div>
-            <button type="submit" 
-                    class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
-                确认地址并通知发布者
-            </button>
-        </form>
-    </div>
-"""
-
 ORDER_DETAILS_HTML = """
     <div class="flex flex-col md:flex-row gap-8">
         <div class="flex-1">
@@ -464,10 +440,33 @@ ORDER_DETAILS_HTML = """
                     {% if order['tracking_number'] %}
                     <p><strong>快递单号:</strong> {{ order['tracking_number'] }}</p>
                     {% endif %}
+                    {% if order['estimated_arrival_date'] %}
+                    <p><strong>预计到达日期:</strong> {{ order['estimated_arrival_date'] }}</p>
+                    {% endif %}
+                    {% if order['flight_number'] %}
+                    <p><strong>航班号:</strong> {{ order['flight_number'] }}</p>
+                    {% endif %}
+                    {% if order['pickup_location'] %}
+                    <p><strong>预计取货地址:</strong> {{ order['pickup_location'] }}</p>
+                    {% endif %}
+                    {% if order['rating'] %}
+                    <p><strong>评价星级:</strong> {{ '★' * order['rating'] + '☆' * (5 - order['rating']) }}</p>
+                    {% endif %}
                 </div>
 
                 <div class="mt-8 space-y-4">
-                    {% if user_is_carrier and order['status'] == 'address_submitted' %}
+                    {% if user_is_buyer and order['status'] == 'accepted' %}
+                        <p class="text-sm text-gray-500">已成功通知帮带者，请等待他们填写收货地址。</p>
+                    {% elif user_is_carrier and order['status'] == 'accepted' %}
+                        <form method="post" action="/post_shipping_address/{{ order['id'] }}" class="space-y-4">
+                            <label for="shipping_address" class="block text-sm font-medium text-gray-700">填写收货地址</label>
+                            <textarea id="shipping_address" name="shipping_address" rows="4" required 
+                                      class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm"></textarea>
+                            <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">
+                                确认地址并通知发布者
+                            </button>
+                        </form>
+                    {% elif user_is_carrier and order['status'] == 'address_submitted' %}
                         <p class="text-sm text-gray-500">已成功通知发布者，请等待他们发货。</p>
                     {% elif user_is_buyer and order['status'] == 'address_submitted' %}
                         <form method="post" action="/post_tracking_number/{{ order['id'] }}" class="space-y-4">
@@ -482,15 +481,43 @@ ORDER_DETAILS_HTML = """
                     {% elif user_is_buyer and order['status'] == 'ordered' %}
                         <p class="text-sm text-gray-500">已通知帮带者，请等待他们确认收货。</p>
                     {% elif user_is_carrier and order['status'] == 'ordered' %}
-                        <p class="text-sm text-gray-500">物品已发货，请注意查收。</p>
-                        <form method="post" action="/confirm_receipt/{{ order['id'] }}" class="mt-4">
+                        <p class="text-sm text-gray-500">物品已发货，请注意查收。确认收到货后，请填写到达信息。</p>
+                        <form method="post" action="/post_arrival_info/{{ order['id'] }}" class="space-y-4 mt-4">
+                            <div>
+                                <label for="estimated_arrival_date" class="block text-sm font-medium text-gray-700">预计到达日期</label>
+                                <input type="date" id="estimated_arrival_date" name="estimated_arrival_date" required class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                            </div>
+                            <div>
+                                <label for="flight_number" class="block text-sm font-medium text-gray-700">航班号 (可选)</label>
+                                <input type="text" id="flight_number" name="flight_number" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                            </div>
+                            <div>
+                                <label for="pickup_location" class="block text-sm font-medium text-gray-700">预计取货地址 (可选)</label>
+                                <input type="text" id="pickup_location" name="pickup_location" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm">
+                            </div>
+                            <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700">
+                                确认收货并填写到达信息
+                            </button>
+                        </form>
+                    {% elif user_is_buyer and order['status'] == 'awaiting_pickup' %}
+                        <p class="text-sm text-gray-500">帮带者已确认收货，并提供了到达信息。请在收到货后，点击确认完成。</p>
+                        <form method="post" action="/complete_order/{{ order['id'] }}" class="space-y-4 mt-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">评价帮带者</label>
+                                <div class="mt-1 flex items-center space-x-2">
+                                    {% for i in range(1, 6) %}
+                                        <input type="radio" id="rating-{{ i }}" name="rating" value="{{ i }}" required class="hidden peer">
+                                        <label for="rating-{{ i }}" class="text-xl text-gray-400 cursor-pointer peer-checked:text-yellow-400">★</label>
+                                    {% endfor %}
+                                </div>
+                            </div>
                             <button type="submit" 
                                 class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700">
-                                确认已收到货
+                                确认完成并提交评价
                             </button>
                         </form>
                     {% elif order['status'] == 'received' %}
-                        <p class="text-center text-green-600 font-bold text-xl">交易已完成！</p>
+                        <p class="text-center text-green-600 font-bold text-xl">交易已圆满完成！</p>
                     {% endif %}
                 </div>
             </div>
@@ -500,7 +527,7 @@ ORDER_DETAILS_HTML = """
             <div class="bg-white p-8 rounded-lg shadow-lg">
                 <h3 class="text-2xl font-bold text-center text-indigo-600 mb-6">交易进度</h3>
                 <div class="space-y-4">
-                    {% set steps = ['accepted', 'address_submitted', 'ordered', 'received'] %}
+                    {% set steps = ['accepted', 'address_submitted', 'ordered', 'awaiting_pickup', 'received'] %}
                     {% for step in steps %}
                         <div class="flex items-center space-x-4">
                             <div class="w-8 h-8 rounded-full flex items-center justify-center 
@@ -521,13 +548,21 @@ ORDER_DETAILS_HTML = """
                                     收货地址已确认
                                 {% elif step == 'ordered' %}
                                     已下单并寄出
+                                {% elif step == 'awaiting_pickup' %}
+                                    已确认收货，等待取件
                                 {% elif step == 'received' %}
-                                    已收到货
+                                    交易已完成
                                 {% endif %}
                             </span>
                         </div>
                         {% if not loop.last %}
-                        <div class="h-8 w-1 bg-gray-300 ml-3"></div>
+                        <div class="h-8 w-1 ml-3 
+                            {% if steps.index(order['status']) >= loop.index %}
+                                bg-green-500
+                            {% else %}
+                                bg-gray-300
+                            {% endif %}
+                        "></div>
                         {% endif %}
                     {% endfor %}
                 </div>
@@ -719,6 +754,11 @@ def edit_demand(demand_id):
         flash("您无权编辑此需求。", "error")
         return redirect(url_for('index'))
 
+    # Do not allow editing if the demand has been accepted
+    if demand['status'] != 'open':
+        flash("此需求已被接受，无法编辑。", "error")
+        return redirect(url_for('index'))
+
     if request.method == 'POST':
         item_name = request.form['item_name']
         description = request.form.get('description', '')
@@ -760,6 +800,11 @@ def delete_demand(demand_id):
         flash("您无权删除此需求。", "error")
         return redirect(url_for('index'))
 
+    # Do not allow deletion if the demand has been accepted
+    if demand['status'] != 'open':
+        flash("此需求已被接受，无法删除。", "error")
+        return redirect(url_for('index'))
+
     db.execute('DELETE FROM demands WHERE id = ?', (demand_id,))
     db.commit()
     flash("需求删除成功！", "success")
@@ -798,43 +843,13 @@ def accept_demand(demand_id):
     db.commit()
 
     flash("成功接受需求！请填写收货地址。", "success")
-    return redirect(url_for('post_shipping_address', demand_id=demand_id))
-
-
-@app.route('/post_shipping_address/<int:demand_id>', methods=['GET', 'POST'])
-def post_shipping_address(demand_id):
-    """Handles the carrier's shipping address submission."""
-    if 'username' not in session:
-        flash("请先登录。", "error")
-        return redirect(url_for('login'))
-
-    db = get_db()
+    # Redirect to the new order details page for the user to continue the flow
     order = db.execute('SELECT * FROM orders WHERE demand_id = ? AND carrier_id = ?',
                        (demand_id, session.get('user_id'))).fetchone()
-    demand = db.execute('SELECT * FROM demands WHERE id = ?', (demand_id,)).fetchone()
-
-    if not order or not demand or order['status'] != 'accepted':
-        flash("无效的请求。", "error")
-        return redirect(url_for('index'))
-
-    if request.method == 'POST':
-        shipping_address = request.form['shipping_address']
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        db.execute('UPDATE orders SET shipping_address = ?, status = ?, updated_at = ? WHERE id = ?',
-                   (shipping_address, 'address_submitted', now, order['id']))
-        db.commit()
-
-        # Simulate notification
-        print(
-            f"Notification: Carrier (ID: {session.get('user_id')}) has submitted shipping address for demand (ID: {demand_id}).")
-        flash("收货地址已确认，已通知发布者。", "success")
-        return redirect(url_for('order_details', order_id=order['id']))
-
-    return render_template_string(
-        base_html("填写收货地址", render_template_string(ACCEPT_DEMAND_HTML, demand=demand), get_flash_messages_html()))
+    return redirect(url_for('order_details', order_id=order['id']))
 
 
-@app.route('/order_details/<int:order_id>')
+@app.route('/order_details/<int:order_id>', methods=['GET'])
 def order_details(order_id):
     """Displays the order details and progress bar."""
     if 'username' not in session:
@@ -843,10 +858,11 @@ def order_details(order_id):
 
     db = get_db()
     order = db.execute('SELECT * FROM orders WHERE id = ?', (order_id,)).fetchone()
-
     if not order:
-        flash("订单不存在。", "error")
-        return redirect(url_for('index'))
+        order = db.execute('SELECT * FROM orders WHERE demand_id = ?', (order_id,)).fetchone()
+        if not order:
+            flash("订单不存在。", "error")
+            return redirect(url_for('index'))
 
     demand = db.execute('SELECT * FROM demands WHERE id = ?', (order['demand_id'],)).fetchone()
 
@@ -858,7 +874,8 @@ def order_details(order_id):
         'accepted': '需求已接受',
         'address_submitted': '收货地址已确认',
         'ordered': '已下单并寄出',
-        'received': '已收到货'
+        'awaiting_pickup': '已确认收货，等待取件',
+        'received': '交易已完成'
     }
     status_text = status_map.get(order['status'], '未知状态')
     user_is_buyer = demand['user_id'] == session.get('user_id')
@@ -874,6 +891,34 @@ def order_details(order_id):
     )
 
 
+@app.route('/post_shipping_address/<int:order_id>', methods=['POST'])
+def post_shipping_address(order_id):
+    """Handles the buyer's shipping address submission."""
+    if 'username' not in session:
+        flash("请先登录。", "error")
+        return redirect(url_for('login'))
+
+    db = get_db()
+    order = db.execute('SELECT * FROM orders WHERE id = ?', (order_id,)).fetchone()
+    demand = db.execute('SELECT * FROM demands WHERE id = ?', (order['demand_id'],)).fetchone()
+
+    if not order or not demand or order['carrier_id'] != session.get('user_id') or order['status'] != 'accepted':
+        flash("无效的请求或您无权操作。", "error")
+        return redirect(url_for('index'))
+
+    shipping_address = request.form['shipping_address']
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    db.execute('UPDATE orders SET shipping_address = ?, status = ?, updated_at = ? WHERE id = ?',
+               (shipping_address, 'address_submitted', now, order['id']))
+    db.commit()
+
+    # Simulate notification
+    print(
+        f"Notification: Carrier (ID: {session.get('user_id')}) has submitted shipping address for demand (ID: {demand['id']}).")
+    flash("收货地址已确认，已通知发布者。", "success")
+    return redirect(url_for('order_details', order_id=order['id']))
+
+
 @app.route('/post_tracking_number/<int:order_id>', methods=['POST'])
 def post_tracking_number(order_id):
     """Handles the buyer's tracking number submission."""
@@ -886,7 +931,7 @@ def post_tracking_number(order_id):
     demand = db.execute('SELECT * FROM demands WHERE id = ?', (order['demand_id'],)).fetchone()
 
     if not order or not demand or demand['user_id'] != session.get('user_id') or order['status'] != 'address_submitted':
-        flash("无效的请求。", "error")
+        flash("无效的请求或您无权操作。", "error")
         return redirect(url_for('index'))
 
     tracking_number = request.form['tracking_number']
@@ -901,28 +946,63 @@ def post_tracking_number(order_id):
     return redirect(url_for('order_details', order_id=order['id']))
 
 
-@app.route('/confirm_receipt/<int:order_id>', methods=['POST'])
-def confirm_receipt(order_id):
-    """Handles the carrier confirming receipt of the goods."""
+@app.route('/post_arrival_info/<int:order_id>', methods=['POST'])
+def post_arrival_info(order_id):
+    """Handles carrier's submission of estimated arrival info."""
     if 'username' not in session:
         flash("请先登录。", "error")
         return redirect(url_for('login'))
 
     db = get_db()
     order = db.execute('SELECT * FROM orders WHERE id = ?', (order_id,)).fetchone()
-
     if not order or order['carrier_id'] != session.get('user_id') or order['status'] != 'ordered':
-        flash("无效的请求。", "error")
+        flash("无效的请求或您无权操作。", "error")
         return redirect(url_for('index'))
 
+    estimated_arrival_date = request.form['estimated_arrival_date']
+    flight_number = request.form.get('flight_number')
+    pickup_location = request.form.get('pickup_location')
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    db.execute('UPDATE orders SET status = ?, updated_at = ? WHERE id = ?',
-               ('received', now, order['id']))
+
+    db.execute(
+        'UPDATE orders SET estimated_arrival_date = ?, flight_number = ?, pickup_location = ?, status = ?, updated_at = ? WHERE id = ?',
+        (estimated_arrival_date, flight_number, pickup_location, 'awaiting_pickup', now, order['id']))
     db.commit()
 
     # Simulate notification
-    print(f"Notification: Carrier (ID: {session.get('user_id')}) has confirmed receipt for order (ID: {order_id}).")
-    flash("已成功确认收货，交易完成！", "success")
+    print(f"Notification: Carrier (ID: {session.get('user_id')}) has posted arrival info for order (ID: {order_id}).")
+    flash("已成功提交到达信息，请等待需求方确认收货。", "success")
+    return redirect(url_for('order_details', order_id=order['id']))
+
+
+@app.route('/complete_order/<int:order_id>', methods=['POST'])
+def complete_order(order_id):
+    """Handles the buyer confirming receipt and rating the carrier."""
+    if 'username' not in session:
+        flash("请先登录。", "error")
+        return redirect(url_for('login'))
+
+    db = get_db()
+    order = db.execute('SELECT * FROM orders WHERE id = ?', (order_id,)).fetchone()
+    demand = db.execute('SELECT * FROM demands WHERE id = ?', (order['demand_id'],)).fetchone()
+
+    if not order or demand['user_id'] != session.get('user_id') or order['status'] != 'awaiting_pickup':
+        flash("无效的请求或您无权操作。", "error")
+        return redirect(url_for('index'))
+
+    rating = int(request.form['rating'])
+    if not 1 <= rating <= 5:
+        flash("无效的评分。", "error")
+        return redirect(url_for('order_details', order_id=order['id']))
+
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    db.execute('UPDATE orders SET rating = ?, status = ?, updated_at = ? WHERE id = ?',
+               (rating, 'received', now, order['id']))
+    db.commit()
+
+    # Simulate notification
+    print(f"Notification: Buyer (ID: {session.get('user_id')}) has completed the order and rated the carrier.")
+    flash("交易已圆满完成！感谢您的参与。", "success")
     return redirect(url_for('order_details', order_id=order['id']))
 
 
