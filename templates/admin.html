@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="bg-white p-8 rounded-lg shadow-lg">
+    <h1 class="text-3xl font-bold text-center text-indigo-600 mb-6">管理员后台</h1>
+    <div class="space-y-6">
+        <div class="flex justify-between items-center bg-gray-100 p-4 rounded-md">
+            <span class="font-semibold text-lg">网站名称:</span>
+            <form method="post" action="{{ url_for('set_site_name') }}" class="flex space-x-2">
+                <input type="text" name="site_name" value="{{ settings['site_name'] }}" required class="px-3 py-2 rounded-md border border-gray-300">
+                <button type="submit" class="py-2 px-4 bg-indigo-500 text-white rounded-md hover:bg-indigo-600">更新</button>
+            </form>
+        </div>
+        
+        <div class="flex justify-between items-center bg-gray-100 p-4 rounded-md">
+            <span class="font-semibold text-lg">注册功能状态:</span>
+            <form method="post" action="{{ url_for('toggle_registration') }}">
+                {% if settings['registration_enabled'] %}
+                <button type="submit" class="py-2 px-4 bg-red-500 text-white rounded-md hover:bg-red-600">
+                    关闭注册
+                </button>
+                {% else %}
+                <button type="submit" class="py-2 px-4 bg-green-500 text-white rounded-md hover:bg-green-600">
+                    开启注册
+                </button>
+                {% endif %}
+            </form>
+        </div>
+
+        <div>
+            <h3 class="text-xl font-semibold mb-4">动态字段管理</h3>
+            <form method="post" action="{{ url_for('update_fields') }}" class="space-y-4">
+                {% for field in settings['fields_definition'] %}
+                <div class="flex items-center space-x-4 p-2 border border-gray-200 rounded-md">
+                    <input type="text" name="field_name_{{ loop.index0 }}" value="{{ field['name'] }}" placeholder="字段名(英文)..." class="flex-1 px-2 py-1 rounded-md border">
+                    <input type="text" name="field_label_{{ loop.index0 }}" value="{{ field['label'] }}" placeholder="显示名称(中文)..." class="flex-1 px-2 py-1 rounded-md border">
+                    <select name="field_type_{{ loop.index0 }}" class="px-2 py-1 rounded-md border">
+                        <option value="text" {% if field['type'] == 'text' %}selected{% endif %}>文本</option>
+                        <option value="number" {% if field['type'] == 'number' %}selected{% endif %}>数字</option>
+                        <option value="textarea" {% if field['type'] == 'textarea' %}selected{% endif %}>多行文本</option>
+                        <option value="file" {% if field['type'] == 'file' %}selected{% endif %}>文件</option>
+                    </select>
+                    <input type="checkbox" name="field_required_{{ loop.index0 }}" {% if field['required'] %}checked{% endif %}>必填
+                    <button type="button" onclick="removeField(this)" class="text-red-500 hover:underline text-sm">删除</button>
+                </div>
+                {% endfor %}
+                <div id="new-fields-container"></div>
+                <button type="button" onclick="addField()" class="py-2 px-4 bg-gray-500 text-white rounded-md hover:bg-gray-600">添加字段</button>
+                <button type="submit" class="py-2 px-4 bg-blue-500 text-white rounded-md hover:bg-blue-600">保存所有字段</button>
+            </form>
+        </div>
+        
+        <div>
+            <h3 class="text-xl font-semibold mb-4">用户列表</h3>
+            <div class="overflow-x-auto">
+                <table class="table-auto w-full text-sm text-left text-gray-500">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                        <tr>
+                            <th scope="col">ID</th>
+                            <th scope="col">用户名</th>
+                            <th scope="col">管理员</th>
+                            <th scope="col">锁定</th>
+                            <th scope="col">有效期</th>
+                            <th scope="col">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for user in users %}
+                        <tr class="bg-white border-b hover:bg-gray-50">
+                            <td>{{ user['id'] }}</td>
+                            <td>{{ user['username'] }}</td>
+                            <td>{{ '是' if user['is_admin'] else '否' }}</td>
+                            <td>{{ '已锁定' if user['is_locked'] else '正常' }}</td>
+                            <td>{{ user['expiry_date'] if user['expiry_date'] else '永久' }}</td>
+                            <td class="space-x-2 whitespace-nowrap">
+                                {% if user['id'] != session['user_id'] %}
+                                <a href="{{ url_for('toggle_lock', user_id=user['id']) }}" class="text-blue-600 hover:underline">
+                                    {{ '解锁' if user['is_locked'] else '锁定' }}
+                                </a>
+                                <form method="post" action="{{ url_for('set_expiry', user_id=user['id']) }}" class="inline">
+                                    <input type="date" name="expiry_date" class="px-2 py-1 text-xs border rounded-md">
+                                    <button type="submit" class="text-blue-600 hover:underline text-xs">设置有效期</button>
+                                </form>
+                                <a href="{{ url_for('delete_user', user_id=user['id']) }}" class="text-red-600 hover:underline">删除</a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <script>
+        let fieldIndex = {{ settings['fields_definition']|length }};
+        function addField() {
+            const container = document.getElementById('new-fields-container');
+            const newField = document.createElement('div');
+            newField.className = 'flex items-center space-x-4 p-2 border border-gray-200 rounded-md';
+            newField.innerHTML = `
+                <input type="text" name="field_name_${fieldIndex}" placeholder="字段名(英文)..." class="flex-1 px-2 py-1 rounded-md border" required>
+                <input type="text" name="field_label_${fieldIndex}" placeholder="显示名称(中文)..." class="flex-1 px-2 py-1 rounded-md border" required>
+                <select name="field_type_${fieldIndex}" class="px-2 py-1 rounded-md border">
+                    <option value="text">文本</option>
+                    <option value="number">数字</option>
+                    <option value="textarea">多行文本</option>
+                    <option value="file">文件</option>
+                </select>
+                <input type="checkbox" name="field_required_${fieldIndex}">必填
+                <button type="button" onclick="removeField(this)" class="text-red-500 hover:underline text-sm">删除</button>
+            `;
+            container.appendChild(newField);
+            fieldIndex++;
+        }
+        function removeField(button) {
+            button.parentElement.remove();
+        }
+    </script>
+{% endblock %}
