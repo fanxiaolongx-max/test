@@ -89,3 +89,44 @@
       * **密码**：`admin_password_123`
 3.  登录后，点击导航栏中的“**管理员后台**”链接，进入管理面板。
 4.  在管理面板中，你可以修改网站名称、开启/关闭注册功能、管理动态字段、查看和管理所有用户。
+
+**Q&A: 1. 查看文件是用的哪个路由，如果没有登录也不允许查看文件，我该怎么加这段代码
+**
+根据你提供的代码，处理文件查看的路由是 `uploaded_file`。
+
+```python
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+```
+
+这段代码的作用是，当用户访问 `/uploads/文件名` 这个 URL 时，它会直接从 `uploads` 文件夹中读取并返回该文件。**目前这段代码没有任何权限检查，任何知道文件名的用户都可以直接访问。**
+
+要实现“如果没有登录也不允许查看文件”，你需要在这个函数中调用之前讨论过的 `verify_session()` 函数进行验证。
+
+-----
+
+### 需要修改的代码
+
+打开 `app.py` 文件，找到 `uploaded_file` 路由函数，在函数的第一行添加会话验证，如果验证失败，就重定向到登录页面。
+
+```python
+# app.py
+
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    # 在这里添加验证代码
+    if not verify_session():
+        # 如果会话无效（未登录或已过期），重定向到登录页
+        return redirect(url_for('login'))
+
+    # 如果会话有效，则允许访问文件
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+```
+
+### 代码说明
+
+1.  `if not verify_session():`：这是权限检查的核心。它调用了你已经修改过的 `verify_session()` 函数。如果用户没有有效的登录会话，该函数会返回 `False`。
+2.  `return redirect(url_for('login'))`：如果会话无效，程序会立即停止文件返回操作，并发送一个重定向指令，将用户浏览器导向 `/login` 登录页面。
+
+通过这个修改，只有当用户处于有效的登录状态时，才能访问 `/uploads/<filename>` 这个路由，从而保护了上传的文件不被未授权的用户直接访问。
